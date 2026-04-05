@@ -4,26 +4,31 @@ const path = require("path");
 const connectDB = require("./config/db");
 const errorMiddleware = require("./middleware/errorMiddleware");
 
-// Set environment variables
-process.env.CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "datgqarwm";
-process.env.CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY || "353943956995324";
-process.env.CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET || "8NpoxJM8VcTnREUzG_Fw1iYrvjE";
 process.env.PORT = process.env.PORT || "5000";
 process.env.JWT_SECRET =
   process.env.JWT_SECRET || "borrowbridge_super_secret_jwt_key_2025";
 process.env.JWT_EXPIRE = process.env.JWT_EXPIRE || "30d";
 process.env.NODE_ENV = process.env.NODE_ENV || "development";
+process.env.CLOUDINARY_CLOUD_NAME =
+  process.env.CLOUDINARY_CLOUD_NAME || "datgqarwm";
+process.env.CLOUDINARY_API_KEY =
+  process.env.CLOUDINARY_API_KEY || "353943956995324";
+process.env.CLOUDINARY_API_SECRET =
+  process.env.CLOUDINARY_API_SECRET || "8NpoxJM8VcTnREUzG_Fw1iYrvjE";
 
-// Connect to MongoDB
 connectDB();
 
 const app = express();
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:3000"],
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://localhost:8080",  // ← ADD THIS
+      "http://localhost:4173",  // ← ADD THIS (for preview)
+    ],
     credentials: true,
   })
 );
@@ -42,6 +47,9 @@ app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/listings", require("./routes/listingRoutes"));
 app.use("/api/requests", require("./routes/requestRoutes"));
+app.use("/api/messages", require("./routes/messageRoutes"));
+app.use("/api/reviews", require("./routes/reviewRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
 
 app.use(errorMiddleware);
 

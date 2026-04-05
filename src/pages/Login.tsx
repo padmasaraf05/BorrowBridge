@@ -7,15 +7,42 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff } from "lucide-react";
 import BorrowBridgeLogo from "@/components/BorrowBridgeLogo";
+import { useAuth } from "@/context/authContext";
+import api from "@/lib/api";
+import { toast } from "sonner";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    navigate("/dashboard");
-  };
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!email || !password) {
+    toast.error("Please fill in all fields");
+    return;
+  }
+  setLoading(true);
+  try {
+    const res = await api.post("/auth/login", { email, password });
+    // Store in localStorage directly
+    localStorage.setItem("token", res.data.token);
+    localStorage.setItem("user", JSON.stringify(res.data.user));
+    login(res.data.token, res.data.user);
+    toast.success("Welcome back! 👋");
+    // Force hard redirect
+    setTimeout(() => {
+      window.location.replace("/dashboard");
+    }, 500);
+  } catch (err: any) {
+    toast.error(err.response?.data?.message || "Login failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-muted/50 px-4 py-12">
@@ -29,9 +56,14 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email">College Email</Label>
-              <Input id="email" type="email" placeholder="you@college.edu" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@college.edu"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">
@@ -39,6 +71,8 @@ const Login = () => {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
@@ -49,27 +83,16 @@ const Login = () => {
                 </button>
               </div>
             </div>
-
             <div className="flex items-center space-x-2">
               <Checkbox id="remember" />
               <Label htmlFor="remember" className="text-sm font-normal">Remember me</Label>
             </div>
-
-            <Button type="submit" className="w-full">Log In</Button>
-
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logging in..." : "Log In"}
+            </Button>
             <div className="text-center">
               <Link to="#" className="text-sm text-primary hover:underline">Forgot password?</Link>
             </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">or</span>
-              </div>
-            </div>
-
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
               <Link to="/signup" className="font-medium text-primary hover:underline">Sign Up</Link>

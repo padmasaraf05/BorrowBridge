@@ -1,6 +1,6 @@
 const Request = require("../models/Request");
 const Listing = require("../models/Listing");
-const Notification = require("../models/Notification");
+const createNotification = require("../utils/createNotification");
 
 // Helper: calculate days between two dates
 const calculateDays = (fromDate, toDate) => {
@@ -12,12 +12,10 @@ const calculateDays = (fromDate, toDate) => {
 };
 
 // ─── SEND REQUEST ─────────────────────────────────────────
-// POST /api/requests (protected)
 const sendRequest = async (req, res) => {
   try {
     const { listingId, fromDate, toDate, message } = req.body;
 
-    // Validate required fields
     if (!listingId || !fromDate || !toDate) {
       return res.status(400).json({
         success: false,
@@ -25,7 +23,6 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Check listing exists
     const listing = await Listing.findById(listingId);
     if (!listing) {
       return res.status(404).json({
@@ -34,7 +31,6 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Cannot request your own listing
     if (listing.owner.toString() === req.user._id.toString()) {
       return res.status(400).json({
         success: false,
@@ -42,7 +38,6 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Check listing is available
     if (!listing.isAvailable) {
       return res.status(400).json({
         success: false,
@@ -50,7 +45,6 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Check if user already has a pending request for this listing
     const existingRequest = await Request.findOne({
       listing: listingId,
       requester: req.user._id,
@@ -63,7 +57,6 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Validate dates
     const from = new Date(fromDate);
     const to = new Date(toDate);
     if (from >= to) {
@@ -73,7 +66,6 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    // Calculate duration and total price
     const duration = calculateDays(fromDate, toDate);
     let totalPrice = 0;
     if (listing.pricingType === "rent") {
@@ -82,7 +74,6 @@ const sendRequest = async (req, res) => {
       totalPrice = listing.price;
     }
 
-    // Create request
     const request = await Request.create({
       listing: listingId,
       requester: req.user._id,
@@ -94,11 +85,18 @@ const sendRequest = async (req, res) => {
       duration,
     });
 
-    // Increment requests count on listing
     listing.requestsCount += 1;
     await listing.save();
 
-    // Populate for response
+    // ✅ Notify the owner that someone requested their item
+    await createNotification({
+      recipient: listing.owner,
+      type: "request_received",
+      message: `${req.user.name} requested your item: "${listing.title}"`,
+      link: `/requests`,
+      relatedId: request._id,
+    });
+
     await request.populate([
       { path: "listing", select: "title pricingType price images category" },
       { path: "requester", select: "name avatar rating" },
@@ -120,8 +118,6 @@ const sendRequest = async (req, res) => {
 };
 
 // ─── GET INCOMING REQUESTS ────────────────────────────────
-// GET /api/requests/incoming (protected)
-// Requests that others sent to ME (I am the owner)
 const getIncomingRequests = async (req, res) => {
   try {
     const { status } = req.query;
@@ -148,8 +144,6 @@ const getIncomingRequests = async (req, res) => {
 };
 
 // ─── GET OUTGOING REQUESTS ────────────────────────────────
-// GET /api/requests/outgoing (protected)
-// Requests that I sent to others
 const getOutgoingRequests = async (req, res) => {
   try {
     const { status } = req.query;
@@ -176,7 +170,6 @@ const getOutgoingRequests = async (req, res) => {
 };
 
 // ─── GET SINGLE REQUEST ───────────────────────────────────
-// GET /api/requests/:id (protected)
 const getRequestById = async (req, res) => {
   try {
     const request = await Request.findById(req.params.id)
@@ -191,7 +184,6 @@ const getRequestById = async (req, res) => {
       });
     }
 
-    // Only requester or owner can view the request
     const isRequester =
       request.requester._id.toString() === req.user._id.toString();
     const isOwner =
@@ -218,8 +210,6 @@ const getRequestById = async (req, res) => {
 };
 
 // ─── UPDATE REQUEST STATUS ────────────────────────────────
-// PUT /api/requests/:id (protected — owner only)
-// status can be: accepted | declined | completed
 const updateRequestStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -232,7 +222,10 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-    const request = await Request.findById(req.params.id);
+    const request = await Request.findById(req.params.id).populate(
+      "listing",
+      "title"
+    );
     if (!request) {
       return res.status(404).json({
         success: false,
@@ -240,7 +233,6 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-    // Only owner can accept/decline/complete
     if (request.owner.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -248,7 +240,6 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-    // Cannot update already declined/completed requests
     if (["declined", "completed", "cancelled"].includes(request.status)) {
       return res.status(400).json({
         success: false,
@@ -258,6 +249,27 @@ const updateRequestStatus = async (req, res) => {
 
     request.status = status;
     await request.save();
+
+    // ✅ Notify the requester of status change
+    const statusMessages = {
+      accepted: `Your request for "${request.listing.title}" was accepted! 🎉`,
+      declined: `Your request for "${request.listing.title}" was declined.`,
+      completed: `Your transaction for "${request.listing.title}" is marked complete.`,
+    };
+
+    const notificationTypes = {
+      accepted: "request_accepted",
+      declined: "request_declined",
+      completed: "request_accepted",
+    };
+
+    await createNotification({
+      recipient: request.requester,
+      type: notificationTypes[status],
+      message: statusMessages[status],
+      link: `/requests`,
+      relatedId: request._id,
+    });
 
     await request.populate([
       { path: "listing", select: "title pricingType price images category" },
@@ -280,10 +292,12 @@ const updateRequestStatus = async (req, res) => {
 };
 
 // ─── CANCEL REQUEST ───────────────────────────────────────
-// DELETE /api/requests/:id (protected — requester only)
 const cancelRequest = async (req, res) => {
   try {
-    const request = await Request.findById(req.params.id);
+    const request = await Request.findById(req.params.id).populate(
+      "listing",
+      "title"
+    );
 
     if (!request) {
       return res.status(404).json({
@@ -292,7 +306,6 @@ const cancelRequest = async (req, res) => {
       });
     }
 
-    // Only requester can cancel their own request
     if (request.requester.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -300,7 +313,6 @@ const cancelRequest = async (req, res) => {
       });
     }
 
-    // Can only cancel pending requests
     if (request.status !== "pending") {
       return res.status(400).json({
         success: false,
@@ -311,9 +323,17 @@ const cancelRequest = async (req, res) => {
     request.status = "cancelled";
     await request.save();
 
-    // Decrease request count on listing
-    await Listing.findByIdAndUpdate(request.listing, {
+    await Listing.findByIdAndUpdate(request.listing._id, {
       $inc: { requestsCount: -1 },
+    });
+
+    // ✅ Notify the owner that request was cancelled
+    await createNotification({
+      recipient: request.owner,
+      type: "request_cancelled",
+      message: `A request for "${request.listing.title}" was cancelled.`,
+      link: `/requests`,
+      relatedId: request._id,
     });
 
     return res.status(200).json({
