@@ -3,46 +3,62 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff } from "lucide-react";
 import BorrowBridgeLogo from "@/components/BorrowBridgeLogo";
 import { useAuth } from "@/context/authContext";
-import api from "@/lib/api";
-import { toast } from "sonner";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!email || !password) {
-    toast.error("Please fill in all fields");
-    return;
-  }
-  setLoading(true);
-  try {
-    const res = await api.post("/auth/login", { email, password });
-    // Store in localStorage directly
-    localStorage.setItem("token", res.data.token);
-    localStorage.setItem("user", JSON.stringify(res.data.user));
-    login(res.data.token, res.data.user);
-    toast.success("Welcome back! 👋");
-    // Force hard redirect
-    setTimeout(() => {
-      window.location.replace("/dashboard");
-    }, 500);
-  } catch (err: any) {
-    toast.error(err.response?.data?.message || "Login failed");
-  } finally {
-    setLoading(false);
-  }
-};
+    e.preventDefault();
+    setError("");
+
+    if (!email || !password) {
+      setError("Please fill in all fields");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password: password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.token) {
+        // ✅ Save to localStorage
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+
+        // ✅ Update auth context state
+        login(data.token, data.user);
+
+        // ✅ Client-side navigation — NO page reload
+        navigate("/dashboard", { replace: true });
+      } else {
+        setError(data.message || "Invalid email or password");
+        setLoading(false);
+      }
+    } catch (err) {
+      setError("Cannot connect to server. Is backend running?");
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-muted/50 px-4 py-12">
@@ -50,10 +66,17 @@ const Login = () => {
         <CardHeader className="items-center space-y-2 pb-2 text-center">
           <BorrowBridgeLogo size={64} />
           <h1 className="font-heading text-2xl font-bold">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">Log in with your college email</p>
+          <p className="text-sm text-muted-foreground">
+            Log in with your college email
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive font-medium">
+                ⚠️ {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">College Email</Label>
               <Input
@@ -79,23 +102,20 @@ const Login = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPassword
+                    ? <EyeOff className="h-4 w-4" />
+                    : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox id="remember" />
-              <Label htmlFor="remember" className="text-sm font-normal">Remember me</Label>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Logging in..." : "Log In"}
             </Button>
-            <div className="text-center">
-              <Link to="#" className="text-sm text-primary hover:underline">Forgot password?</Link>
-            </div>
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
-              <Link to="/signup" className="font-medium text-primary hover:underline">Sign Up</Link>
+              <Link to="/signup" className="font-medium text-primary hover:underline">
+                Sign Up
+              </Link>
             </p>
           </form>
         </CardContent>

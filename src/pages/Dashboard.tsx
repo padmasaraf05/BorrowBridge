@@ -86,8 +86,11 @@ const Dashboard = () => {
       }
     };
 
+    const timer = setTimeout(() => {
     fetchDashboardData();
-  }, []);
+  }, 500);
+  return () => clearTimeout(timer);
+}, []);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-IN", {

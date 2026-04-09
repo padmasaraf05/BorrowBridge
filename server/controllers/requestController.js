@@ -16,10 +16,10 @@ const sendRequest = async (req, res) => {
   try {
     const { listingId, fromDate, toDate, message } = req.body;
 
-    if (!listingId || !fromDate || !toDate) {
+    if (!listingId) {
       return res.status(400).json({
         success: false,
-        message: "Please provide listing, from date and to date",
+        message: "Please provide listing ID",
       });
     }
 
@@ -57,29 +57,42 @@ const sendRequest = async (req, res) => {
       });
     }
 
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    if (from >= to) {
-      return res.status(400).json({
-        success: false,
-        message: "To date must be after from date",
-      });
-    }
-
-    const duration = calculateDays(fromDate, toDate);
+    // ✅ Only require dates for rent items, not sale or free
+    let duration = 0;
     let totalPrice = 0;
+    let resolvedFromDate = fromDate || new Date();
+    let resolvedToDate = toDate || new Date();
+
     if (listing.pricingType === "rent") {
+      if (!fromDate || !toDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Please select dates for rental",
+        });
+      }
+      const from = new Date(fromDate);
+      const to = new Date(toDate);
+      if (from >= to) {
+        return res.status(400).json({
+          success: false,
+          message: "To date must be after from date",
+        });
+      }
+      duration = calculateDays(fromDate, toDate);
       totalPrice = listing.price * duration;
     } else if (listing.pricingType === "sale") {
       totalPrice = listing.price;
+      resolvedFromDate = new Date();
+      resolvedToDate = new Date();
     }
+    // free items: price = 0, no dates needed
 
     const request = await Request.create({
       listing: listingId,
       requester: req.user._id,
       owner: listing.owner,
-      fromDate,
-      toDate,
+      fromDate: resolvedFromDate,
+      toDate: resolvedToDate,
       message: message || "",
       totalPrice,
       duration,
@@ -88,7 +101,6 @@ const sendRequest = async (req, res) => {
     listing.requestsCount += 1;
     await listing.save();
 
-    // ✅ Notify the owner that someone requested their item
     await createNotification({
       recipient: listing.owner,
       type: "request_received",
@@ -116,7 +128,6 @@ const sendRequest = async (req, res) => {
     });
   }
 };
-
 // ─── GET INCOMING REQUESTS ────────────────────────────────
 const getIncomingRequests = async (req, res) => {
   try {

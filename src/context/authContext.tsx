@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 
 interface User {
   _id: string;
@@ -12,7 +18,7 @@ interface User {
   rating: number;
   totalReviews: number;
   isAdmin: boolean;
-  showEmail: boolean;  // ← ADD THIS
+  showEmail: boolean;
   showPhone: boolean;
 }
 
@@ -23,6 +29,7 @@ interface AuthContextType {
   logout: () => void;
   updateUser: (user: User) => void;
   isLoggedIn: boolean;
+  ready: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -31,24 +38,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Load from localStorage on app start
+  // ✅ CRITICAL: Start as FALSE so RequireAuth waits before redirecting
+  const [ready, setReady] = useState(true);
+
   useEffect(() => {
-    const savedToken = localStorage.getItem("token");
-    const savedUser = localStorage.getItem("user");
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+    try {
+      const savedToken = localStorage.getItem("token");
+      const savedUser = localStorage.getItem("user");
+      if (savedToken && savedUser) {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      }
+    } catch (e) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    } finally {
+      // ✅ CRITICAL: Always mark ready after check completes
+      // Without this, RequireAuth redirects to /login before token loads
+      setReady(true);
     }
   }, []);
 
   const login = (newToken: string, newUser: User) => {
-  // Write to localStorage first
-  localStorage.setItem("token", newToken);
-  localStorage.setItem("user", JSON.stringify(newUser));
-  // Then update state
-  setToken(newToken);
-  setUser(newUser);
-};
+    // ✅ Save to localStorage FIRST, then update state
+    localStorage.setItem("token", newToken);
+    localStorage.setItem("user", JSON.stringify(newUser));
+    setToken(newToken);
+    setUser(newUser);
+  };
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -71,6 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         logout,
         updateUser,
         isLoggedIn: !!token,
+        ready,
       }}
     >
       {children}

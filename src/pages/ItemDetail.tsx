@@ -71,34 +71,42 @@ const ItemDetail = () => {
     return 0;
   };
 
-  const handleSendRequest = async () => {
-    if (!isLoggedIn) {
-      toast.error("Please login to send a request");
-      return;
-    }
-    if (!fromDate || !toDate) {
-      toast.error("Please select dates");
-      return;
-    }
-    setRequesting(true);
-    try {
-      await api.post("/requests", {
-        listingId: id,
-        fromDate,
-        toDate,
-        message,
-      });
-      toast.success("Request sent successfully! 🎉");
-      setFromDate("");
-      setToDate("");
-      setMessage("");
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to send request");
-    } finally {
-      setRequesting(false);
-    }
-  };
+const handleSendRequest = async () => {
+  if (!isLoggedIn) {
+    toast.error("Please login to send a request");
+    return;
+  }
 
+  // Only require dates for rental items
+  if (listing.pricingType === "rent" && (!fromDate || !toDate)) {
+    toast.error("Please select rental dates");
+    return;
+  }
+
+  setRequesting(true);
+  try {
+    const payload: any = {
+      listingId: id,
+      message,
+    };
+
+    // Only add dates for rent items
+    if (listing.pricingType === "rent") {
+      payload.fromDate = fromDate;
+      payload.toDate = toDate;
+    }
+
+    await api.post("/requests", payload);
+    toast.success("Request sent successfully! 🎉");
+    setFromDate("");
+    setToDate("");
+    setMessage("");
+  } catch (err: any) {
+    toast.error(err.response?.data?.message || "Failed to send request");
+  } finally {
+    setRequesting(false);
+  }
+};
   const formatPrice = () => {
     if (!listing) return "";
     if (listing.pricingType === "free") return "Free";

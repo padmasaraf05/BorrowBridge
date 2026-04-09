@@ -22,13 +22,13 @@ const requestSchema = new mongoose.Schema(
     },
     // Date range from ItemDetail.tsx form
     fromDate: {
-      type: Date,
-      required: [true, "From date is required"],
-    },
-    toDate: {
-      type: Date,
-      required: [true, "To date is required"],
-    },
+  type: Date,
+  default: Date.now,  // ← remove required, add default
+},
+toDate: {
+  type: Date,
+  default: Date.now,  // ← remove required, add default
+},
     // Optional message from ItemDetail.tsx textarea
     message: {
       type: String,

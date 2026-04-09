@@ -21,6 +21,7 @@ const Profile = () => {
   const [myListings, setMyListings] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -81,12 +82,35 @@ const Profile = () => {
         showPhone: form.showPhone,
       });
       updateUser(res.data.user);
-      toast.success("Profile updated successfully!");
+      toast.success("Profile updated successfully! ✅");
+      setIsEditing(false);
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Failed to update profile");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleEditProfile = () => {
+    setIsEditing(true);
+    // Small delay to let state update, then scroll
+    setTimeout(() => {
+      document.getElementById("profile-form")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
+  };
+
+  const handleShareProfile = () => {
+    const url = `${window.location.origin}/profile`;
+    navigator.clipboard
+      .writeText(url)
+      .then(() => toast.success("Profile link copied to clipboard! 📋"))
+      .catch(() => {
+        // Fallback if clipboard not supported
+        toast.info(`Your profile link: ${url}`);
+      });
   };
 
   const handleDeleteListing = async (id: string) => {
@@ -100,6 +124,23 @@ const Profile = () => {
     }
   };
 
+  const handleCancelEdit = () => {
+    // Reset form to original user data
+    if (user) {
+      setForm({
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        branch: user.branch || "",
+        year: user.year || "",
+        college: user.college || "",
+        showEmail: user.showEmail || false,
+        showPhone: user.showPhone || false,
+      });
+    }
+    setIsEditing(false);
+  };
+
   const formatPrice = (listing: any) => {
     if (listing.pricingType === "free") return "Free";
     if (listing.pricingType === "rent") return `₹${listing.price}/day`;
@@ -107,7 +148,9 @@ const Profile = () => {
   };
 
   const getInitials = (name: string) =>
-    name ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "U";
+    name
+      ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+      : "U";
 
   const timeAgo = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-IN", {
@@ -118,55 +161,113 @@ const Profile = () => {
 
   return (
     <div className="container mx-auto max-w-3xl px-4 py-8">
-      {/* Profile Card */}
+
+      {/* ── Profile Card ───────────────────────────────────── */}
       <Card className="hover:-translate-y-0">
         <CardContent className="flex flex-col items-center p-8 text-center">
           <Avatar className="h-24 w-24">
             {user?.avatar ? (
-              <img src={user.avatar} alt={user.name} className="h-full w-full rounded-full object-cover" />
+              <img
+                src={user.avatar}
+                alt={user.name}
+                className="h-full w-full rounded-full object-cover"
+              />
             ) : (
               <AvatarFallback className="bg-primary/15 text-2xl font-bold text-primary">
                 {getInitials(user?.name || "")}
               </AvatarFallback>
             )}
           </Avatar>
+
           <button className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline">
             <Camera className="h-3 w-3" /> Change Photo
           </button>
+
           <h1 className="mt-3 font-heading text-2xl font-bold">{user?.name}</h1>
+
           <p className="mt-1 text-sm text-muted-foreground">
-            {user?.year ? `Year ${user.year}` : ""}{user?.branch ? ` · ${user.branch}` : ""}
+            {user?.year ? `Year ${user.year}` : ""}
+            {user?.branch ? ` · ${user.branch}` : ""}
           </p>
+
           <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
             <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            {user?.rating?.toFixed(1) || "0.0"} out of 5 · {user?.totalReviews || 0} reviews
+            {user?.rating?.toFixed(1) || "0.0"} out of 5 ·{" "}
+            {user?.totalReviews || 0} reviews
           </p>
-          <Badge variant="available" className="mt-3">✓ Verified Student</Badge>
+
+          <Badge variant="available" className="mt-3">
+            ✓ Verified Student
+          </Badge>
+
           <div className="mt-4 flex gap-3">
-            <Button variant="outline" size="sm"><Pencil className="h-3 w-3" /> Edit Profile</Button>
-            <Button variant="outline" size="sm"><Share2 className="h-3 w-3" /> Share Profile</Button>
+            {/* Edit Profile — scrolls to form and enables editing */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleEditProfile}
+              className={isEditing ? "border-primary text-primary" : ""}
+            >
+              <Pencil className="h-3 w-3" />
+              {isEditing ? "Editing..." : "Edit Profile"}
+            </Button>
+
+            {/* Share Profile — copies link to clipboard */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShareProfile}
+            >
+              <Share2 className="h-3 w-3" /> Share Profile
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Editable Info Form */}
-      <Card className="mt-6 hover:-translate-y-0">
+      {/* ── Editable Info Form ─────────────────────────────── */}
+      <Card id="profile-form" className="mt-6 hover:-translate-y-0">
         <CardContent className="p-6">
-          <h2 className="font-heading text-lg font-semibold">Personal Info</h2>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+
+          {/* Form header with editing indicator */}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-heading text-lg font-semibold">Personal Info</h2>
+            {isEditing && (
+              <span className="text-xs text-primary font-medium animate-pulse">
+                ✏️ Editing mode
+              </span>
+            )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" className="mt-1" value={form.name}
-                onChange={(e) => update("name", e.target.value)} />
+              <Input
+                id="name"
+                className="mt-1"
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                disabled={!isEditing}
+              />
             </div>
             <div>
               <Label htmlFor="email">College Email</Label>
-              <Input id="email" className="mt-1 bg-muted" value={form.email} readOnly />
+              <Input
+                id="email"
+                className="mt-1 bg-muted"
+                value={form.email}
+                readOnly
+              />
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="phone">Phone (optional)</Label>
-              <Input id="phone" className="mt-1" placeholder="+91 98765 43210"
-                value={form.phone} onChange={(e) => update("phone", e.target.value)} />
+              <Input
+                id="phone"
+                className="mt-1"
+                placeholder="+91 98765 43210"
+                value={form.phone}
+                onChange={(e) => update("phone", e.target.value)}
+                disabled={!isEditing}
+              />
             </div>
           </div>
 
@@ -174,123 +275,244 @@ const Profile = () => {
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="branch">Branch</Label>
-              <Input id="branch" className="mt-1" value={form.branch}
-                onChange={(e) => update("branch", e.target.value)} />
+              <Input
+                id="branch"
+                className="mt-1"
+                value={form.branch}
+                onChange={(e) => update("branch", e.target.value)}
+                disabled={!isEditing}
+              />
             </div>
             <div>
               <Label>Year</Label>
-              <Select value={form.year} onValueChange={(v) => update("year", v)}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Select year" /></SelectTrigger>
+              <Select
+                value={form.year}
+                onValueChange={(v) => update("year", v)}
+                disabled={!isEditing}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
                 <SelectContent>
                   {["1", "2", "3", "4"].map((y) => (
-                    <SelectItem key={y} value={y}>{y}{y === "1" ? "st" : y === "2" ? "nd" : y === "3" ? "rd" : "th"} Year</SelectItem>
+                    <SelectItem key={y} value={y}>
+                      {y}
+                      {y === "1" ? "st" : y === "2" ? "nd" : y === "3" ? "rd" : "th"} Year
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="sm:col-span-2">
               <Label htmlFor="college">College Name</Label>
-              <Input id="college" className="mt-1" value={form.college}
-                onChange={(e) => update("college", e.target.value)} />
+              <Input
+                id="college"
+                className="mt-1"
+                value={form.college}
+                onChange={(e) => update("college", e.target.value)}
+                disabled={!isEditing}
+              />
             </div>
           </div>
 
-          <h2 className="mt-8 font-heading text-lg font-semibold">Contact Preferences</h2>
+          <h2 className="mt-8 font-heading text-lg font-semibold">
+            Contact Preferences
+          </h2>
           <div className="mt-4 space-y-4">
             <div className="flex items-center justify-between">
               <Label>Show email to other users</Label>
-              <Switch checked={form.showEmail} onCheckedChange={(v) => update("showEmail", v)} />
+              <Switch
+                checked={form.showEmail}
+                onCheckedChange={(v) => update("showEmail", v)}
+                disabled={!isEditing}
+              />
             </div>
             <div className="flex items-center justify-between">
               <Label>Show phone number</Label>
-              <Switch checked={form.showPhone} onCheckedChange={(v) => update("showPhone", v)} />
+              <Switch
+                checked={form.showPhone}
+                onCheckedChange={(v) => update("showPhone", v)}
+                disabled={!isEditing}
+              />
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end">
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
+          {/* Action buttons — only show when editing */}
+          <div className="mt-6 flex justify-end gap-3">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={handleEditProfile}>
+                <Pencil className="h-3 w-3 mr-1" /> Edit Profile
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Tabs */}
+      {/* ── Tabs ───────────────────────────────────────────── */}
       <div className="mt-8 flex gap-6 border-b">
-        {([["listings", "My Listings"], ["reviews", "Reviews Received"]] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`pb-2 text-sm font-medium transition-colors ${tab === key ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+        {(
+          [
+            ["listings", "My Listings"],
+            ["reviews", "Reviews Received"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`pb-2 text-sm font-medium transition-colors ${
+              tab === key
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
             {label}
+            {key === "listings" && myListings.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                {myListings.length}
+              </span>
+            )}
+            {key === "reviews" && reviews.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                {reviews.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
+      {/* ── My Listings Tab ────────────────────────────────── */}
       {tab === "listings" ? (
         <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {myListings.length === 0 ? (
-            <p className="text-muted-foreground col-span-3 text-center py-8">No listings yet.</p>
-          ) : myListings.map((item) => (
-            <Card key={item._id}>
-              <div className="h-40 rounded-t-lg bg-muted overflow-hidden">
-                {item.images?.[0] && (
-                  <img src={item.images[0]} alt={item.title} className="h-full w-full object-cover" />
-                )}
-              </div>
-              <CardContent className="p-4">
-                <h3 className="font-heading font-semibold leading-tight">{item.title}</h3>
-                <div className="mt-2 flex items-center gap-2">
-                  <Badge variant={typeBadgeVariant[item.pricingType as keyof typeof typeBadgeVariant]}>
-                    {typeLabel[item.pricingType]}
-                  </Badge>
-                  <Badge variant="available">Active</Badge>
+            <p className="text-muted-foreground col-span-3 text-center py-8">
+              No listings yet.
+            </p>
+          ) : (
+            myListings.map((item) => (
+              <Card key={item._id}>
+                <div className="h-40 rounded-t-lg bg-muted overflow-hidden">
+                  {item.images?.[0] ? (
+                    <img
+                      src={item.images[0]}
+                      alt={item.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-4xl">
+                      📦
+                    </div>
+                  )}
                 </div>
-                <p className="mt-2 text-lg font-bold text-primary">{formatPrice(item)}</p>
-                <p className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1"><Eye className="h-3 w-3" />{item.views} views</span>
-                  <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{item.requestsCount} requests</span>
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1"><Pencil className="h-3 w-3" /> Edit</Button>
-                  <Button variant="outline" size="sm"
-                    className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    onClick={() => handleDeleteListing(item._id)}>
-                    <Trash2 className="h-3 w-3" /> Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                <CardContent className="p-4">
+                  <h3 className="font-heading font-semibold leading-tight">
+                    {item.title}
+                  </h3>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge
+                      variant={
+                        typeBadgeVariant[
+                          item.pricingType as keyof typeof typeBadgeVariant
+                        ]
+                      }
+                    >
+                      {typeLabel[item.pricingType]}
+                    </Badge>
+                    <Badge variant="available">Active</Badge>
+                  </div>
+                  <p className="mt-2 text-lg font-bold text-primary">
+                    {formatPrice(item)}
+                  </p>
+                  <p className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <Eye className="h-3 w-3" />
+                      {item.views} views
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <MessageSquare className="h-3 w-3" />
+                      {item.requestsCount} requests
+                    </span>
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Pencil className="h-3 w-3" /> Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                      onClick={() => handleDeleteListing(item._id)}
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       ) : (
+        /* ── Reviews Received Tab ──────────────────────────── */
         <div className="mt-6 space-y-4">
           {reviews.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No reviews received yet.</p>
-          ) : reviews.map((r: any) => (
-            <Card key={r._id} className="hover:-translate-y-0">
-              <CardContent className="p-5">
-                <div className="flex items-start gap-3">
-                  <Avatar className="h-10 w-10 flex-shrink-0">
-                    <AvatarFallback className="bg-primary/15 text-sm font-semibold text-primary">
-                      {getInitials(r.reviewer?.name || "")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold">{r.reviewer?.name}</span>
-                      <span className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+            <p className="text-muted-foreground text-center py-8">
+              No reviews received yet.
+            </p>
+          ) : (
+            reviews.map((r: any) => (
+              <Card key={r._id} className="hover:-translate-y-0">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-10 w-10 flex-shrink-0">
+                      <AvatarFallback className="bg-primary/15 text-sm font-semibold text-primary">
+                        {getInitials(r.reviewer?.name || "")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">
+                          {r.reviewer?.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {timeAgo(r.createdAt)}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex gap-0.5">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-3.5 w-3.5 ${
+                              i < r.rating
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-muted-foreground/30"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {r.text}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        For: {r.listing?.title}
+                      </p>
                     </div>
-                    <div className="mt-0.5 flex gap-0.5">
-                      {Array.from({ length: r.rating }).map((_, i) => (
-                        <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                      ))}
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">{r.text}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">For: {r.listing?.title}</p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
       )}
     </div>
